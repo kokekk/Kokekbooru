@@ -37,8 +37,8 @@ jobs:
           $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
           if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
-          & $iscc /O"Output" /F"Kokekbooru-Setup" installer.iss
-          if (-not (Test-Path "Output/Kokekbooru-Setup.exe")) { throw "Kokekbooru-Setup.exe was not created!" }
+          & $iscc /O"." /F"Kokekbooru-Setup" installer.iss
+          if (-not (Test-Path "Kokekbooru-Setup.exe")) { throw "Kokekbooru-Setup.exe was not created!" }
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -46,7 +46,7 @@ jobs:
           name: windows-builds
           path: |
             Kokekbooru-Windows-Portable.zip
-            Output/Kokekbooru-Setup.exe
+            Kokekbooru-Setup.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -87,5 +87,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
+          files: release-assets/**/*
           generate_release_notes: true
