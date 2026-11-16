@@ -14,6 +14,7 @@ OutputDir=Output
 OutputBaseFilename=Kokekbooru-Setup
 Compression=lzma2
 SolidCompression=yes
+SetupIconFile=icon.ico
 WizardStyle=modern
 
 [Languages]

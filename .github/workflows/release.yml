@@ -25,7 +25,7 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Build with PyInstaller
-        run: pyinstaller --noconfirm --onedir --windowed --name Kokekbooru --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
+        run: pyinstaller --noconfirm --onedir --windowed --name Kokekbooru --icon=icon.ico --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
 
       - name: Create Portable ZIP
         shell: pwsh
@@ -37,7 +37,8 @@ jobs:
           $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
           if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
-          & $iscc installer.iss
+          & $iscc /O"Output" /F"Kokekbooru-Setup" installer.iss
+          if (-not (Test-Path "Output/Kokekbooru-Setup.exe")) { throw "Kokekbooru-Setup.exe was not created!" }
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
