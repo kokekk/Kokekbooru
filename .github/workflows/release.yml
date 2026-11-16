@@ -25,21 +25,19 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Build with PyInstaller
-        run: |
-          pyinstaller --noconfirm --onedir --windowed --name Kokekbooru ^
-            --collect-all rapidocr_onnxruntime ^
-            --collect-all onnxruntime ^
-            --collect-all ctranslate2 ^
-            kokekbooru.py
+        run: pyinstaller --noconfirm --onedir --windowed --name Kokekbooru --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
 
       - name: Create Portable ZIP
         shell: pwsh
-        run: |
-          Compress-Archive -Path dist/Kokekbooru/* -DestinationPath Kokekbooru-Windows-Portable.zip
+        run: Compress-Archive -Path dist/Kokekbooru/* -DestinationPath Kokekbooru-Windows-Portable.zip
 
       - name: Build Windows Installer (Inno Setup)
+        shell: pwsh
         run: |
-          iscc installer.iss
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          & $iscc installer.iss
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -64,16 +62,10 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Build with PyInstaller
-        run: |
-          pyinstaller --noconfirm --onedir --name kokekbooru \
-            --collect-all rapidocr_onnxruntime \
-            --collect-all onnxruntime \
-            --collect-all ctranslate2 \
-            kokekbooru.py
+        run: pyinstaller --noconfirm --onedir --name kokekbooru --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
 
       - name: Package Linux Archive
-        run: |
-          tar -czvf Kokekbooru-Linux-x86_64.tar.gz -C dist kokekbooru
+        run: tar -czvf Kokekbooru-Linux-x86_64.tar.gz -C dist kokekbooru
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
