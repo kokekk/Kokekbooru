@@ -18,7 +18,7 @@
 * **AI Auto-Tagging (Images & Videos):** Automatically tags illustrations, photos, and videos (via multi-frame sampling) using ONNX Runtime (`WD-EVA02-Large v3` / `WD-ViT v3`) with GPU acceleration and automatic CPU fallback.
 * **Built-in OCR & Bubble Translation:** Detects text inside images (`RapidOCR` / `Windows.Media.Ocr`) and renders translated text directly over speech bubbles using either a local offline neural translator (`NLLB-200 INT8`) or optional online providers.
 * **Artist & Collector Friendly:**
-  * Rule34-style tag autocomplete and instant search with category filters.
+  * Booru-style tag autocomplete and instant search with category filters.
   * Optional `18+` / NSFW filter mode in Settings.
   * Full **English & Russian** UI localization (plus optional Russian tag translation in RU mode).
   * **JSON Backup & Restore** so your tags and collections are always portable.
