@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.4-beta"
+        versionName = "0.1.5-beta"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -37,13 +37,13 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = "3.11"
+        version = "3.10"
         pip {
-            install("fastapi==0.111.0")
-            install("uvicorn==0.30.1")
-            install("pydantic==2.7.4")
-            install("pillow==10.3.0")
-            install("numpy==1.26.4")
+            install("pillow")
+            install("numpy")
+            install("pydantic==1.10.15")
+            install("fastapi==0.103.2")
+            install("uvicorn==0.23.2")
         }
     }
 }

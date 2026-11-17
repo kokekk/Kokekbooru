@@ -65,6 +65,8 @@ hide_python_console_completely()
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
+if not hasattr(Image, "Resampling"):
+    Image.Resampling = Image
 
 try:
     from fastapi import FastAPI, HTTPException
