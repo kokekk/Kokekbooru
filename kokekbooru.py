@@ -2800,6 +2800,32 @@ class KokekAIEngine:
         use_gpu = bool(cfg.get("gpu_enabled", True))
 
         try:
+            if os.environ.get("KOKEK_ANDROID") == "1":
+                from java import jclass
+                bridge = jclass("com.kokekk.kokekbooru.OnnxBridge")
+                prov = bridge.loadModel(str(onnx_path), use_gpu)
+                self.ort_session = AndroidOrtSessionWrapper(bridge, str(prov))
+                self.ort_input_name = "input_1:0"
+                self.active_gpu_provider = str(prov)
+                self.ort_tags = []
+                self.tag_to_idx = {}
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    next(reader, None)
+                    for idx, row in enumerate(reader):
+                        if len(row) >= 3:
+                            t_name = row[1].strip()
+                            try:
+                                cat_id = int(row[2])
+                            except ValueError:
+                                cat_id = 0
+                            self.ort_tags.append((t_name, cat_id))
+                            self.tag_to_idx[t_name] = idx
+                self.loaded = (self.ort_session is not None and len(self.ort_tags) > 0)
+                self.last_load_error = ""
+                print(f"[Kokekbooru] Android ONNX загружен: {self.model_label} ({len(self.ort_tags)} тегов) на {self.active_gpu_provider}")
+                return
+
             if not self._repair_attempted:
                 self._repair_attempted = True
                 ort = ensure_onnxruntime_healthy(use_gpu=use_gpu)
