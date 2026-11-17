@@ -1,9 +1,9 @@
-name: Build & Release Kokekbooru
+name: Release Build (Windows, Linux, Android)
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -11,116 +11,144 @@ permissions:
 
 jobs:
   build-windows:
+    name: Build Windows (Setup.exe & Portable.zip)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          python-version: "3.11"
+          channel: 'stable'
+          cache: true
 
-      - name: Install dependencies
+      - name: Enable Windows Desktop & scaffold missing runner files
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          flutter config --enable-windows-desktop
+          flutter create --platforms=windows .
 
-      - name: Build with PyInstaller
-        run: pyinstaller --noconfirm --onedir --windowed --name Kokekbooru --icon=icon.ico --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
+      - name: Copy custom icon to Windows runner
+        run: |
+          Copy-Item -Path "icon.ico" -Destination "windows/runner/resources/app_icon.ico" -Force
 
-      - name: Create Portable ZIP
-        shell: pwsh
-        run: Compress-Archive -Path dist/Kokekbooru/* -DestinationPath Kokekbooru-Windows-Portable.zip
+      - name: Install dependencies & build Windows Release
+        run: |
+          flutter pub get
+          flutter build windows --release
 
-      - name: Build Windows Installer (Inno Setup)
+      - name: Create Kokekbooru-Windows-Portable.zip
         shell: pwsh
         run: |
-          $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
-          & $iscc /O"." /F"Kokekbooru-Setup" installer.iss
-          if (-not (Test-Path "Kokekbooru-Setup.exe")) { throw "Kokekbooru-Setup.exe was not created!" }
+          New-Item -ItemType Directory -Force -Path dist
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "dist/Kokekbooru-Windows-Portable.zip" -Force
 
-      - name: Upload Windows Artifacts
+      - name: Compile Kokekbooru-Setup.exe with Inno Setup
+        shell: pwsh
+        run: |
+          iscc installer.iss
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-builds
+          name: windows-artifacts
           path: |
-            Kokekbooru-Windows-Portable.zip
-            Kokekbooru-Setup.exe
+            dist/Kokekbooru-Setup.exe
+            dist/Kokekbooru-Windows-Portable.zip
 
   build-linux:
+    name: Build Linux (x86_64.tar.gz)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
+      - name: Install Linux GTK & build dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsqlite3-dev ffmpeg
 
-      - name: Build with PyInstaller
-        run: pyinstaller --noconfirm --onedir --name kokekbooru --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all ctranslate2 kokekbooru.py
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
-      - name: Package Linux Archive
-        run: tar -czvf Kokekbooru-Linux-x86_64.tar.gz -C dist kokekbooru
+      - name: Enable Linux Desktop & scaffold runner
+        run: |
+          flutter config --enable-linux-desktop
+          flutter create --platforms=linux .
 
-      - name: Upload Linux Artifacts
+      - name: Build Linux Release
+        run: |
+          flutter pub get
+          flutter build linux --release
+
+      - name: Package Kokekbooru-Linux-x86_64.tar.gz
+        run: |
+          mkdir -p dist
+          tar -czvf dist/Kokekbooru-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-builds
-          path: Kokekbooru-Linux-x86_64.tar.gz
-
+          name: linux-artifacts
+          path: dist/Kokekbooru-Linux-x86_64.tar.gz
 
   build-android:
+    name: Build Android (.apk)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          python-version: "3.10"
+          distribution: 'temurin'
+          java-version: '17'
 
-      - uses: actions/setup-java@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          distribution: "temurin"
-          java-version: "17"
+          channel: 'stable'
+          cache: true
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+      - name: Scaffold Android platform wrapper & build APK
+        run: |
+          flutter create --platforms=android --org com.kokekk .
+          flutter pub get
+          flutter build apk --release
 
-      - name: Copy kokekbooru.py into Android Python assets
-        run: cp kokekbooru.py android/app/src/main/python/kokekbooru.py
+      - name: Rename APK to Kokekbooru-Android.apk
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Kokekbooru-Android.apk
 
-      - name: Build Android APK
-        working-directory: android
-        run: gradle assembleDebug --no-daemon
-
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Kokekbooru-Android.apk
-
-      - name: Upload Android Artifact
+      - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-builds
-          path: Kokekbooru-Android.apk
+          name: android-artifacts
+          path: dist/Kokekbooru-Android.apk
 
   publish-release:
+    name: Publish GitHub Release
     needs: [build-windows, build-linux, build-android]
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: release-assets
+          path: release_assets
           merge-multiple: true
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release and attach 4 binaries
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/**/*
           generate_release_notes: true
+          files: |
+            release_assets/Kokekbooru-Setup.exe
+            release_assets/Kokekbooru-Windows-Portable.zip
+            release_assets/Kokekbooru-Linux-x86_64.tar.gz
+            release_assets/Kokekbooru-Android.apk

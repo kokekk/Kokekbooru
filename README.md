@@ -1,108 +1,64 @@
-# Kokekbooru
+<div align="center">
 
-**English** | [Русский](README.ru.md)
+# 🎨 Kokekbooru (`beta 0.2`)
 
-[![Version](https://img.shields.io/badge/version-beta%200.1-blue.svg)](https://github.com/kokekk/kokekbooru/releases)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)](#)
+**Native Private Local Booru Cataloger & Reference Manager for Artists and Collectors**  
+Built with **Flutter (Dart)** for **Windows, Linux, and Android**
 
-**Kokekbooru** is a private, local-first booru-style media library and reference organizer for artists and collectors. Keep your entire image and video archive safely on your own PC—no cloud lock-in, no telemetry, no external servers—with built-in AI auto-tagging, fast tag search, and in-image comic/text translation.
+[**🇬🇧 English**](README.md) | [**🇷🇺 Русский**](README.ru.md)
 
-![Kokekbooru Gallery Overview](docs/screenshots/gallery.jpg)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-7c5cff)](https://github.com/kokekk/kokekbooru)
 
----
+</div>
 
-## Why Kokekbooru?
+## ✨ Overview
 
-* **100% Local & Private:** Your files stay untouched in your own folders. Metadata, thumbnails, and settings are stored locally on your machine (`~/.kokekbooru`).
-* **AI Auto-Tagging (Images & Videos):** Automatically tags illustrations, photos, and videos (via multi-frame sampling) using ONNX Runtime (`WD-EVA02-Large v3` / `WD-ViT v3`) with GPU acceleration and automatic CPU fallback.
-* **Built-in OCR & Bubble Translation:** Detects text inside images (`RapidOCR` / `Windows.Media.Ocr`) and renders translated text directly over speech bubbles using either a local offline neural translator (`NLLB-200 INT8`) or optional online providers.
-* **Artist & Collector Friendly:**
-  * Booru-style tag autocomplete and instant search with category filters.
-  * Optional `18+` / NSFW filter mode in Settings.
-  * Full **English & Russian** UI localization (plus optional Russian tag translation in RU mode).
-  * **JSON Backup & Restore** so your tags and collections are always portable.
+**Kokekbooru** (`https://github.com/kokekk/kokekbooru`, author: `@kokekk`) is a fast, 100% local booru-style media library and reference manager. Your original photos and videos remain untouched in their existing folders on your PC or smartphone — Kokekbooru stores only its SQLite index, thumbnails, and settings locally (`~/.kokekbooru/` on Desktop and `getApplicationSupportDirectory()` on Android).
 
-![Image Inspector & Tag Editor](docs/screenshots/inspector.jpg)
+## 🚀 Key Features (`beta 0.2`)
 
-| Before Translation | After In-Image Translation |
-| :---: | :---: |
-| ![Before](docs/screenshots/translation_before.jpg) | ![After](docs/screenshots/translation_after.jpg) |
+- **Adaptive Desktop & Mobile UI:**
+  - **Desktop (`width > 820px`):** Left Sidebar + Topbar + responsive media grid (`maxCrossAxisExtent: 240`), split-screen Inspector with `InteractiveViewer`, and 2-column Settings window.
+  - **Android (`width <= 820px`):** Bottom Navigation Bar (`Gallery`, `Folders`, `Tags`, `Settings`), full-screen swipeable `PageView` inspector with bottom `DraggableScrollableSheet`, and a dedicated **`🖼 From Gallery`** button to import and AI-tag individual images/videos from the standard Android Photo Picker without scanning an entire folder.
+- **Local ONNX AI Auto-Tagging (`SmilingWolf WaifuDiffusion v3`):**
+  - Supports **WD-EVA02-Large v3** (~1.26 GB, maximum accuracy for PC) and **WD-ViT v3** (~360 MB, fast & lightweight for Android and low-spec PCs), downloadable directly from Settings.
+  - Automatic VRAM/RAM batch sizing (`16/6` for `15+ GB`, `8/3` for `8–14 GB`, `4/2` for `4–7 GB`, `2/1` for `<4 GB`, CPU, or Android) and 3-frame video sampling (`beginning`, `middle`, `end`).
+  - Categorizes tags into `📐 Angle`, `🧘 Pose & Action`, `🏷️ General Tags`, `👤 Characters`, and `🔞 18+ (NSFW)` with full Russian tag dictionary (`TAG_RU_DICT`) compatibility.
+- **Safe File Deletion Modes:**
+  - Switchable in `Settings -> General`:
+    1. **Remove from app interface only:** hides the file from Kokekbooru and records its path in `ignored_paths` so future scans skip it, while leaving the physical file on disk untouched.
+    2. **Delete permanently from system:** physically deletes the file from your device storage and database.
+- **Built-in OCR & Speech Bubble Overlay Translation (`文A`):**
+  - Recognizes speech bubbles via **Google ML Kit** (Android), **Windows.Media.Ocr** (`UTF-8` + `ru-RU` Cyrillic support) / **RapidOCR** (Desktop), or **OCR.space** fallback.
+  - Translates via offline **Google ML Kit**, offline **NLLB-200 INT8** (~600 MB), or online APIs (**Google Translate**, **MyMemory**, **LibreTranslate**, **OpenAI-compatible**) and renders auto-sized speech bubble overlays (`AutoSizeText`) directly over the image.
+- **Artist Mode & Cross-Platform Backup:**
+  - Aspect ratio filter (`Portrait`, `Landscape`, `Square`), quick `↔️ Flip H` and `◐ Grayscale` checks, `🎲 Idea Roulette`, and built-in Artist Notebook.
+  - Full `.json` database backup & restore 100% compatible between Desktop, Android, and `kokekbooru.py`.
 
----
+## 📦 Installation
 
-## Quick Start (Windows `.exe` — Recommended)
+### Prebuilt Releases (GitHub Releases)
+Download the latest package for your platform from the [Releases](https://github.com/kokekk/kokekbooru/releases) page:
+- **Windows Installer:** `Kokekbooru-Setup.exe`
+- **Windows Portable:** `Kokekbooru-Windows-Portable.zip`
+- **Linux (x86_64):** `Kokekbooru-Linux-x86_64.tar.gz`
+- **Android APK:** `Kokekbooru-Android.apk`
 
-Most users don't need Python or any developer tools:
-
-1. Go to the **[Releases](https://github.com/kokekk/kokekbooru/releases)** page.
-2. Download the latest **`Kokekbooru-Setup.exe`** installer (or the portable `.zip` archive).
-3. Run the installer and launch **Kokekbooru**.
-4. Your browser will open the local interface at `http://127.0.0.1:8765`.
-5. Open **Settings** to add your media folders and optionally download the local AI tagger or offline translator model.
-
----
-
-## Running from Source (`.py`)
-
-If you prefer running from Python source (Windows or Linux):
-
-### Prerequisites
-
-* **Python 3.10+**
-* *(Optional)* **FFmpeg** on your `PATH` for video thumbnails and multi-frame video tagging.
-* *(Optional)* **NVIDIA CUDA** drivers for GPU-accelerated AI tagging.
-
-### Installation & Launch
-
+### Build from Source
 ```bash
 git clone https://github.com/kokekk/kokekbooru.git
 cd kokekbooru
+flutter pub get
 
-# Create and activate a virtual environment (recommended)
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux / macOS:
-source .venv/bin/activate
+# Run on Desktop (Windows / Linux)
+flutter run -d windows   # or -d linux
 
-# Install core dependencies
-pip install fastapi uvicorn pydantic pillow numpy onnxruntime
+# Build Release binaries
+flutter build windows --release
+flutter build linux --release
+flutter build apk --release
 ```
 
-Run the application:
-
-```bash
-python kokekbooru.py
-```
-
-Once started, open `http://127.0.0.1:8765` in your browser (or let it open automatically).
-
----
-
-## Supported Formats
-
-* **Images:** `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`
-* **Videos:** `.mp4`, `.mkv`, `.webm`, `.mov`, `.avi`, `.m4v`, `.wmv`
-
----
-
-## Data & Portability
-
-* **Database & Settings:** `~/.kokekbooru/` (`kokekbooru.db`, `kokekbooru_settings.json`, thumbnails, logs)
-* **AI Models:** `~/.kokekbooru/ai_models/`
-* **Backups:** Export or restore your entire tag database anytime via **Settings → Backup & Restore (JSON)**.
-
----
-
-## License
-
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)** — see the [LICENSE](LICENSE) file for details.
-All forks and derivative works must remain open-source under the same license.
-
----
-
-## Links & Support
-
-* **Bug Reports & Feature Requests:** [GitHub Issues](https://github.com/kokekk/kokekbooru/issues)
-* **Author:** [@kokekk](https://github.com/kokekk)
+## 📄 License
+Distributed under the **GNU General Public License v3.0 (GPL-3.0)**. Copyright © `@kokekk`.

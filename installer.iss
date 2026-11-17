@@ -1,21 +1,33 @@
-; Inno Setup Script for Kokekbooru
+; Inno Setup Script for Kokekbooru (beta 0.2)
+; Repository: https://github.com/kokekk/kokekbooru
+
 #define MyAppName "Kokekbooru"
-#define MyAppVersion "0.1.0-beta"
-#define MyAppExeName "Kokekbooru.exe"
+#define MyAppVersion "0.2.0"
+#define MyAppPublisher "kokekk"
+#define MyAppURL "https://github.com/kokekk/kokekbooru"
+#define MyAppExeName "kokekbooru.exe"
 
 [Setup]
-AppId={{8F4C2A1B-6E3D-4B9A-9C12-7D4E5F6A8B90}
+AppId={{8F9E4A12-3D5C-4B2E-9F1A-7C8E2B4D6A90}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-DefaultDirName={localappdata}\{#MyAppName}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}/releases
+DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
-PrivilegesRequired=lowest
-OutputDir=.
+DisableProgramGroupPage=yes
+OutputDir=dist
 OutputBaseFilename=Kokekbooru-Setup
-Compression=lzma2
-SolidCompression=yes
 SetupIconFile=icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2/fast
+SolidCompression=yes
 WizardStyle=modern
+PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -25,12 +37,13 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\Kokekbooru\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
