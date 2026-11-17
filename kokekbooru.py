@@ -4856,6 +4856,49 @@ def api_dismiss_ai_banner():
     return {"status": "ok"}
 
 
+
+@app.get("/api/list_dirs")
+def api_list_dirs(path: str = ""):
+    is_android = os.environ.get("KOKEK_ANDROID") == "1"
+    default_root = "/storage/emulated/0" if (is_android and Path("/storage/emulated/0").is_dir()) else str(Path.home())
+    target = Path(path.strip()).expanduser() if path.strip() else Path(default_root)
+    if not target.is_dir():
+        target = Path(default_root)
+    try:
+        target = target.resolve()
+    except Exception:
+        pass
+
+    subdirs = []
+    try:
+        for p in sorted(target.iterdir(), key=lambda x: x.name.lower()):
+            if p.is_dir() and not p.name.startswith("."):
+                subdirs.append({"name": p.name, "path": str(p)})
+    except Exception:
+        pass
+
+    quick = []
+    if is_android or Path("/storage/emulated/0").is_dir():
+        base_s = Path("/storage/emulated/0")
+        for q_name in ("Download", "Pictures", "DCIM", "Movies", "Documents"):
+            qp = base_s / q_name
+            if qp.is_dir():
+                quick.append({"name": q_name, "path": str(qp)})
+    else:
+        for q_name in ("Downloads", "Pictures", "Videos", "Desktop", "Documents"):
+            qp = Path.home() / q_name
+            if qp.is_dir():
+                quick.append({"name": q_name, "path": str(qp)})
+
+    parent_path = str(target.parent) if target.parent != target else str(target)
+    return {
+        "current": str(target),
+        "parent": parent_path,
+        "dirs": subdirs,
+        "quick": quick,
+    }
+
+
 @app.get("/api/pick_folder")
 def api_pick_folder():
     selected_dir = ""
@@ -6189,6 +6232,165 @@ HTML_UI = r"""<!DOCTYPE html>
     text-align: center;
     padding: 20px;
   }
+
+  #mobileMenuBtn {
+    display: none;
+    font-size: 15px;
+    padding: 6px 10px;
+    font-weight: 700;
+  }
+  #mobileSidebarBackdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 7, 12, 0.72);
+    z-index: 145;
+  }
+  #mobileSidebarBackdrop.open {
+    display: block;
+  }
+
+  @media (max-width: 820px) {
+    header {
+      flex-wrap: wrap;
+      white-space: normal;
+      padding: 8px;
+      gap: 6px;
+    }
+    #mobileMenuBtn {
+      display: inline-flex;
+      order: 1;
+    }
+    .search-wrap {
+      order: 2;
+      flex: 1 1 calc(100% - 140px);
+      min-width: 140px;
+    }
+    .header-right {
+      order: 3;
+      margin-left: 0;
+    }
+    #btnExit {
+      display: none;
+    }
+    #folderInput {
+      order: 4;
+      flex: 1 1 130px !important;
+      min-width: 110px !important;
+    }
+    #btnPickFolder, #btnScanNew, #btnRescan {
+      order: 5;
+    }
+    #mediaSegmented, #sortSelect, #shuffleBtn, #aspectSelect, #favOnlyBtn, #bulkModeBtn, #btnRoulette, #clearFiltersBtn {
+      order: 6;
+    }
+    header button, header select, header input[type="text"] {
+      min-height: 34px;
+      font-size: 12.5px;
+    }
+    .search-autocomplete-dropdown {
+      min-width: 240px;
+      max-width: 92vw;
+    }
+    aside.left-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 82vw;
+      max-width: 310px;
+      z-index: 150;
+      transform: translateX(-105%);
+      transition: transform 0.22s ease;
+      box-shadow: 6px 0 24px rgba(0, 0, 0, 0.65);
+    }
+    aside.left-sidebar.mobile-open {
+      transform: translateX(0);
+    }
+    main {
+      padding: 8px;
+    }
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .thumb-wrap {
+      height: 155px;
+    }
+    .card-body {
+      padding: 6px 8px;
+    }
+    .modal-backdrop {
+      padding: 0;
+    }
+    #inspectorModal .modal-box {
+      flex-direction: column;
+      width: 100vw;
+      max-width: 100vw;
+      height: 100dvh;
+      max-height: 100dvh;
+      border-radius: 0;
+      border: none;
+    }
+    .inspector-canvas {
+      flex: 0 0 52dvh;
+      min-height: 220px;
+    }
+    .insp-transform-wrap img {
+      max-height: calc(52dvh - 50px);
+    }
+    .insp-nav-arrow {
+      width: 36px;
+      height: 52px;
+      font-size: 17px;
+    }
+    .zoom-controls {
+      bottom: 8px;
+      padding: 4px 6px;
+      gap: 4px;
+      max-width: 96vw;
+      overflow-x: auto;
+    }
+    .inspector-side {
+      width: 100%;
+      flex: 1;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      padding: 12px;
+    }
+    #settingsModal .modal-box {
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      border-radius: 0 !important;
+      padding: 12px !important;
+    }
+    .settings-layout {
+      flex-direction: column-reverse;
+      gap: 10px;
+    }
+    .set-tabs-bar {
+      width: 100%;
+      flex-direction: row;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding-right: 0;
+      padding-bottom: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .set-tab-btn {
+      width: auto;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 7px 11px;
+    }
+    #setPane-general > div:first-child {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -6228,6 +6430,7 @@ HTML_UI = r"""<!DOCTYPE html>
 </div>
 
 <header>
+  <button type="button" id="mobileMenuBtn" onclick="toggleMobileSidebar()">☰</button>
   <div class="search-wrap">
     <input type="text" id="searchInput" autocomplete="off" oninput="onSearchInput()" onkeydown="onSearchKeyDown(event)" onfocus="onSearchInput()" onblur="hideSearchAutocompleteDelayed()">
     <button type="button" id="searchClearBtn" class="search-clear-btn" onclick="clearSearchInput()" title="Очистить поиск">✖</button>
@@ -6302,6 +6505,7 @@ HTML_UI = r"""<!DOCTYPE html>
 </div>
 <input type="file" id="backupFileInput" accept=".json" style="display:none;" onchange="handleImportBackupFile(event)">
 
+<div id="mobileSidebarBackdrop" onclick="closeMobileSidebar()"></div>
 <div class="workspace">
   <aside class="left-sidebar">
     <!-- 1. Папки в приложении (по умолчанию «🗂️ Все файлы» + созданные пользователем папки) -->
@@ -6740,6 +6944,23 @@ HTML_UI = r"""<!DOCTYPE html>
 </div>
 
 <div id="toast" class="toast"></div>
+
+
+<div id="webFolderPickerModal" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box" style="flex-direction:column;max-width:520px;height:75vh;padding:16px;gap:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      <h3 style="font-size:15px;">📁 Выберите папку / Select Folder</h3>
+      <button onclick="document.getElementById('webFolderPickerModal').classList.remove('open')">✖</button>
+    </div>
+    <div id="wfpQuickBar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="loadWebFolderPicker(wfpParentPath)">⬆️ ..</button>
+      <input type="text" id="wfpCurrentInput" style="flex:1;font-size:12px;" readonly>
+      <button class="primary" onclick="confirmWebFolderPicker()">✅ OK</button>
+    </div>
+    <div id="wfpDirList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:2px;"></div>
+  </div>
+</div>
 
 <script>
 const IS_PUBLIC_EDITION = true;
@@ -8122,10 +8343,68 @@ async function dismissAIBannerForever() {
   await fetch('/api/dismiss_ai_banner', {method: 'POST'});
 }
 
+
+function toggleMobileSidebar() {
+  const sb = document.querySelector('aside.left-sidebar');
+  const bd = document.getElementById('mobileSidebarBackdrop');
+  if (!sb || !bd) return;
+  const isOpen = sb.classList.toggle('mobile-open');
+  bd.classList.toggle('open', isOpen);
+}
+
+function closeMobileSidebar() {
+  const sb = document.querySelector('aside.left-sidebar');
+  const bd = document.getElementById('mobileSidebarBackdrop');
+  if (sb) sb.classList.remove('mobile-open');
+  if (bd) bd.classList.remove('open');
+}
+
+let wfpCurrentPath = '';
+let wfpParentPath = '';
+
+async function loadWebFolderPicker(path = '') {
+  try {
+    const res = await fetch('/api/list_dirs?path=' + encodeURIComponent(path || ''));
+    const data = await res.json();
+    wfpCurrentPath = data.current || '';
+    wfpParentPath = data.parent || '';
+    document.getElementById('wfpCurrentInput').value = wfpCurrentPath;
+    const qBar = document.getElementById('wfpQuickBar');
+    qBar.innerHTML = (data.quick || []).map(q =>
+      `<button type="button" style="font-size:11.5px;padding:4px 8px;" onclick="loadWebFolderPicker('${q.path.replace(/'/g, "\'")}')">📂 ${q.name}</button>`
+    ).join('');
+    const listEl = document.getElementById('wfpDirList');
+    if (!data.dirs || !data.dirs.length) {
+      listEl.innerHTML = `<div style="color:var(--muted);padding:12px;font-size:12.5px;">${currentLang === 'en' ? 'No subfolders inside' : 'Подпапок внутри нет'}</div>`;
+    } else {
+      listEl.innerHTML = data.dirs.map(d =>
+        `<div class="folder-cat-item" onclick="loadWebFolderPicker('${d.path.replace(/'/g, "\'")}')" style="padding:8px 10px;">
+          <span>📁 ${d.name}</span>
+          <span style="color:var(--muted);font-size:11px;">›</span>
+        </div>`
+      ).join('');
+    }
+    document.getElementById('webFolderPickerModal').classList.add('open');
+  } catch (e) {}
+}
+
+function confirmWebFolderPicker() {
+  if (wfpCurrentPath) {
+    document.getElementById('folderInput').value = wfpCurrentPath;
+  }
+  document.getElementById('webFolderPickerModal').classList.remove('open');
+}
+
 async function pickFolderNative() {
-  const res = await fetch('/api/pick_folder');
-  const data = await res.json();
-  if (data.path) document.getElementById('folderInput').value = data.path;
+  try {
+    const res = await fetch('/api/pick_folder');
+    const data = await res.json();
+    if (data.path) {
+      document.getElementById('folderInput').value = data.path;
+      return;
+    }
+  } catch (e) {}
+  await loadWebFolderPicker(document.getElementById('folderInput').value.trim());
 }
 
 async function startScan(forceRescan) {
