@@ -38,6 +38,11 @@ APP_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE_PATH = APP_DIR / "kokekbooru.log"
 
 IS_FROZEN = getattr(sys, "frozen", False)
+IS_ANDROID = (
+    os.environ.get("KOKEK_ANDROID") == "1"
+    or "ANDROID_ROOT" in os.environ
+    or "ANDROID_STORAGE" in os.environ
+)
 WIN_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) if sys.platform.startswith("win") else 0
 
 
@@ -75,7 +80,7 @@ try:
     from pydantic import BaseModel
     import uvicorn
 except ImportError:
-    if IS_FROZEN:
+    if IS_FROZEN or IS_ANDROID:
         raise
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "fastapi", "uvicorn", "pydantic", "pillow", "numpy"],
@@ -118,6 +123,8 @@ VIDEO_BATCH_SIZE = 6
 
 def detect_gpu_vram_gb() -> Optional[float]:
     """Определяет объём видеопамяти (VRAM) в ГБ для подбора безопасного размера батча."""
+    if IS_ANDROID:
+        return None
     try:
         res = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
@@ -163,7 +170,9 @@ def detect_gpu_vram_gb() -> Optional[float]:
 
 def get_optimal_batch_sizes(active_provider: str) -> Tuple[int, int]:
     """Подбирает (image_batch, video_batch) под VRAM видеокарты, чтобы не вылетать на 4-12 ГБ GPU."""
-    if active_provider == "CPU":
+    if IS_ANDROID:
+        return 2, 1
+    if active_provider in ("CPU", "Android CPU"):
         return 4, 2
     vram_gb = detect_gpu_vram_gb()
     if vram_gb is None:
@@ -1747,7 +1756,7 @@ for _eng_k, _ru_v in TAG_RU_DICT.items():
 
 
 def detect_gpu_hardware_available() -> bool:
-    if sys.platform.startswith("win"):
+    if sys.platform.startswith("win") or IS_ANDROID:
         return True
     try:
         import onnxruntime as ort
@@ -2189,7 +2198,7 @@ def get_or_init_rapid_ocr():
             GLOBAL_RAPID_OCR = cls()
             return GLOBAL_RAPID_OCR
         except ImportError:
-            if not RAPID_OCR_INSTALL_TRIED and not IS_FROZEN:
+            if not RAPID_OCR_INSTALL_TRIED and not IS_FROZEN and not IS_ANDROID:
                 RAPID_OCR_INSTALL_TRIED = True
                 for pkg in ("rapidocr-onnxruntime", "rapidocr"):
                     try:
@@ -2623,14 +2632,106 @@ def create_ort_session_safe(ort_mod, onnx_path: Path, sess_opts, providers: List
         raise e1
 
 
+class _AndroidOrtNodeArg:
+    def __init__(self, name: str = "input_1:0"):
+        self.name = name
+
+
+class AndroidOrtSessionWrapper:
+    """Обёртка над Kotlin OnnxBridge (onnxruntime-android), совместимая с API ort.InferenceSession."""
+
+    def __init__(self, bridge, provider: str = "Android CPU"):
+        self._bridge = bridge
+        self.provider = provider
+
+    def get_inputs(self):
+        return [_AndroidOrtNodeArg("input_1:0")]
+
+    def get_providers(self):
+        return [self.provider]
+
+    def run(self, output_names, input_feed, run_options=None):
+        inp_tensor = next(iter(input_feed.values()))
+        arr = np.ascontiguousarray(inp_tensor, dtype=np.float32)
+        batch_size = int(arr.shape[0]) if arr.ndim == 4 else 1
+        flat_arr = np.ascontiguousarray(arr.reshape(-1), dtype=np.float32)
+        try:
+            from java import jarray, jfloat
+            j_input = jarray(jfloat)(flat_arr)
+        except Exception:
+            j_input = flat_arr
+        raw_out = self._bridge.runBatch(j_input, batch_size)
+        out_np = np.array(raw_out, dtype=np.float32)
+        if batch_size > 0 and out_np.size > 0:
+            out_np = out_np.reshape(batch_size, -1)
+        else:
+            out_np = np.zeros((batch_size, 0), dtype=np.float32)
+        return [out_np]
+
+
+def _install_android_onnxruntime_shim():
+    """Регистрирует виртуальный модуль onnxruntime на Android поверх Kotlin OnnxBridge."""
+    existing = sys.modules.get("onnxruntime")
+    if existing is not None and getattr(existing, "_is_kokek_android_shim", False):
+        return existing
+    import types
+    import importlib.machinery
+
+    ort_mod = types.ModuleType("onnxruntime")
+    ort_mod.__spec__ = importlib.machinery.ModuleSpec("onnxruntime", loader=None)
+    ort_mod.__version__ = "1.22.0-android"
+    ort_mod._is_kokek_android_shim = True
+
+    class SessionOptions:
+        def __init__(self):
+            self.graph_optimization_level = 99
+            self.intra_op_num_threads = 4
+            self.inter_op_num_threads = 1
+            self.enable_mem_pattern = True
+            self.execution_mode = 0
+
+    class GraphOptimizationLevel:
+        ORT_DISABLE_ALL = 0
+        ORT_ENABLE_BASIC = 1
+        ORT_ENABLE_EXTENDED = 2
+        ORT_ENABLE_ALL = 99
+
+    class ExecutionMode:
+        ORT_SEQUENTIAL = 0
+        ORT_PARALLEL = 1
+
+    def _create_inference_session(path_or_bytes, sess_options=None, providers=None, **kwargs):
+        from java import jclass
+        bridge = jclass("com.kokekk.kokekbooru.OnnxBridge")
+        use_nnapi = True
+        if providers and "CPUExecutionProvider" in providers and len(providers) == 1:
+            use_nnapi = False
+        prov = bridge.loadModel(str(path_or_bytes), bool(use_nnapi))
+        return AndroidOrtSessionWrapper(bridge, str(prov))
+
+    ort_mod.SessionOptions = SessionOptions
+    ort_mod.GraphOptimizationLevel = GraphOptimizationLevel
+    ort_mod.ExecutionMode = ExecutionMode
+    ort_mod.InferenceSession = _create_inference_session
+    ort_mod.get_available_providers = lambda: ["NnapiExecutionProvider", "CPUExecutionProvider"]
+    ort_mod.get_device = lambda: "NPU/CPU"
+
+    sys.modules["onnxruntime"] = ort_mod
+    return ort_mod
+
+
+if IS_ANDROID:
+    _install_android_onnxruntime_shim()
+
+
 def ensure_onnxruntime_healthy(use_gpu: bool = True):
     """
     Быстро проверяет работоспособность onnxruntime.
-    Если пакет уже исправен — мгновенно возвращает его без вызова pip и без подпроцессов.
-    Если пакет повреждён (например, смешались файлы _pybind_state.py от разных версий),
-    сначала полностью очищает оба пакета, чтобы не возникала ошибка set_default_logger_callback,
-    и устанавливает рабочую версию.
+    На Android возвращает встроенный мост поверх Kotlin OnnxBridge (onnxruntime-android).
     """
+    if IS_ANDROID or os.environ.get("KOKEK_ANDROID") == "1":
+        return _install_android_onnxruntime_shim()
+
     try:
         import onnxruntime as ort
         if hasattr(ort, "InferenceSession") and hasattr(ort, "get_available_providers"):
@@ -2767,6 +2868,14 @@ class KokekAIEngine:
         return self.get_best_available_onnx_files() is not None
 
     def _create_cpu_fallback_session(self, onnx_path: Path):
+        if IS_ANDROID or os.environ.get("KOKEK_ANDROID") == "1":
+            from java import jclass
+            bridge = jclass("com.kokekk.kokekbooru.OnnxBridge")
+            prov = bridge.loadModel(str(onnx_path), False)
+            self.ort_session = AndroidOrtSessionWrapper(bridge, str(prov))
+            self.ort_input_name = "input_1:0"
+            self.active_gpu_provider = str(prov)
+            return
         import onnxruntime as ort
         sess_opts = ort.SessionOptions()
         sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -2802,7 +2911,7 @@ class KokekAIEngine:
         use_gpu = bool(cfg.get("gpu_enabled", True))
 
         try:
-            if os.environ.get("KOKEK_ANDROID") == "1":
+            if IS_ANDROID or os.environ.get("KOKEK_ANDROID") == "1":
                 from java import jclass
                 bridge = jclass("com.kokekk.kokekbooru.OnnxBridge")
                 prov = bridge.loadModel(str(onnx_path), use_gpu)
@@ -2934,7 +3043,7 @@ class KokekAIEngine:
                 preds_list.append(pred)
             except Exception as single_exc:
                 print(f"[Kokekbooru] Ошибка инференса кадра ({self.active_gpu_provider}): {single_exc}")
-                if not switched_to_cpu and self.active_gpu_provider != "CPU":
+                if not switched_to_cpu and self.active_gpu_provider not in ("CPU", "Android CPU"):
                     switched_to_cpu = True
                     best_files = self.get_best_available_onnx_files()
                     if best_files is not None:
@@ -3571,10 +3680,14 @@ def background_ai_download_worker(model_choice: Optional[str] = None):
         AI_ENGINE._repair_attempted = False
         ensure_onnxruntime_healthy(use_gpu=use_gpu)
 
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "opencv-python"],
-            creationflags=WIN_NO_WINDOW,
-        )
+        if not IS_ANDROID and not IS_FROZEN and os.environ.get("KOKEK_ANDROID") != "1":
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "--upgrade", "opencv-python"],
+                    creationflags=WIN_NO_WINDOW,
+                )
+            except Exception:
+                pass
         JOBS.ai_progress_pct = 15.0
 
         if choice == "vit":
@@ -3627,10 +3740,11 @@ def background_trans_model_download_worker():
     JOBS.trans_step_text = "Установка ctranslate2 и sentencepiece..."
 
     try:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "ctranslate2", "sentencepiece"],
-            creationflags=WIN_NO_WINDOW,
-        )
+        if not IS_ANDROID and not IS_FROZEN and os.environ.get("KOKEK_ANDROID") != "1":
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--upgrade", "ctranslate2", "sentencepiece"],
+                creationflags=WIN_NO_WINDOW,
+            )
         TRANS_MODEL_DIR.mkdir(parents=True, exist_ok=True)
         total_files = len(NLLB_FILES)
         for idx, (fname, url) in enumerate(NLLB_FILES):
